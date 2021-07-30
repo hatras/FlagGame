@@ -1,0 +1,462 @@
+<!DOCTYPE>
+<div class="wrap">
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <title>フラッシュ旗上げゲーム</title>
+        <script src="http://code.jquery.com/jquery-1.12.3.min.js"></script>
+        <script>
+        var qnum, cnum, maxTime;                        // 問題番号、正解数、制限時間
+        var startTime,timer;                            // 開始時間、タイマー
+        var redflag_now = 0, blueflag_now = 0;          // 赤旗と青旗の現在の状態（0:下がっている、1:上がっている）
+        var redflag_answer = 0, blueflag_answer = 0;    // 赤旗と青旗の正しい状態（0:下がっている、1:上がっている）
+        var remaining,message;                          // 残り時間、メッセージ
+        var fIndex, cIndex;                                     // 旗インデックス、指示インデックス
+        
+        var flags = ["赤","あか","アカ","左","右の逆","あおの反対","あおの逆","あおじゃないほう","青の反対","青の逆","赤色","青","あお","アオ","右","左の逆","あかの反対","あかの逆","あかじゃないほう","赤の反対","赤の逆","青色"]; // 旗の表現（0~9:赤, 10~19:青）
+        
+        var commands = ["上げて","あげて","上げなさい","あげなさい","下げない","さげない","下げて","さげて","下げなさい","さげなさい","上げない","あげない"]; // 指示(0~5:上げる,6~11:下げる)
+        
+        
+        // 青旗の描画
+        $(function() {
+            $("#blueflag").offset({ top: 360, left: 300});
+        });
+        
+        // 「赤上げる」のボタンを押した時の処理
+        $(function() {
+            $("#redup").on("click", function() {
+                redflag_now = 1;
+                // ボタンの無効化
+                toDisabledRed();
+                // 赤旗を上げる→ボタンの有効化
+                $("#redflag").animate({
+                    "marginTop" : "0px"
+                },"fast", toEnabledRed);
+                $("#under-line").animate({
+                    "marginTop" : "100px"
+                },"fast");
+                // 「赤下げる」のボタンと表示を入れ替える
+                document.getElementById("redup").className = "passive";
+                document.getElementById("reddown").className = "active";
+            });
+        });
+        
+        // 「赤下げる」のボタンを押した時の処理
+        $(function() {
+            $("#reddown").on("click", function() {
+                redflag_now = 0;
+                // ボタンの無効化
+                toDisabledRed();
+                // 赤旗を下げる→ボタンの有効化
+                $("#redflag").animate({
+                    "marginTop" : "100px"
+                }, "fast", toEnabledRed);
+                $("#under-line").animate({
+                    "marginTop" : "0px"
+                }, "fast");
+                // 「赤上げる」のボタンと表示を入れ替える
+                document.getElementById("redup").className = "active";
+                document.getElementById("reddown").className = "passive";
+            });
+        });
+            
+        // 「青上げる」のボタンを押した時の処理
+        $(function() {
+            $("#blueup").on("click", function() {
+                blueflag_now = 1;
+                // ボタンの無効化
+                toDisabledBlue();
+                // 青旗を上げる→ボタンの有効化
+                $("#blueflag").animate({top: 252}, 200, toEnabledBlue);
+                // 「青下げる」のボタンと表示を入れ替える
+                document.getElementById("blueup").className = "passive";
+                document.getElementById("bluedown").className = "active";
+            });
+        });
+            
+        // 「青下げる」のボタンを押した時の処理
+        $(function() {
+            $("#bluedown").on("click", function() {
+                blueflag_now = 0;
+                // ボタンの無効化
+                toDisabledBlue();
+                // 青旗を下げる→ボタンの無効化
+                $("#blueflag").animate({top: 352}, 200, toEnabledBlue);
+                // 「青上げる」のボタンと表示を入れ替える
+                document.getElementById("blueup").className = "active";
+                document.getElementById("bluedown").className = "passive";
+            });
+        });
+        
+        // ページ読み込み時の処理
+        // 旗の上げ下げボタンを無効化する
+        function init() {
+            toDisabledRed();
+            toDisabledBlue();
+        }
+        
+        // 「赤上げる」「赤下げる」ボタンの無効化
+        function toDisabledRed() {
+            $("#redup, #reddown").attr("disabled","disabled");
+        }
+        // 「赤上げる」「赤下げる」ボタンの有効化
+        function toEnabledRed() {
+            $("#redup, #reddown").removeAttr("disabled");
+        }
+        // 「青上げる」「青下げる」ボタンの無効化
+        function toDisabledBlue() {
+            $("#blueup, #bluedown").attr("disabled","disabled");
+        }
+        // 「青上げる」「青下げる」ボタンの有効化
+        function toEnabledBlue() {
+            $("#blueup, #bluedown").removeAttr("disabled");
+        }
+        
+        // 問題作成
+        function setQuiz() {
+            var elm = document.getElementById("command");
+            // 問題番号カウント
+            document.getElementById("qnum").innerText = qnum+1;
+            qnum++;
+            result.display.value = result.display.value + "第" + qnum + "問";
+            
+            fIndex = Math.floor(Math.random()*flags.length);
+            cIndex = Math.floor(Math.random()*commands.length);
+            elm.value = flags[fIndex] + commands[cIndex];
+            result.display.value = result.display.value + "  " + flags[fIndex] + commands[cIndex] + "\n";
+            createAnswer();
+        }
+        
+        // 解答作成
+        function createAnswer() {
+            // 赤旗を上げるべき問題の場合
+            if(fIndex <= 9 && cIndex <= 5) {
+                redflag_answer = 1;
+                result.display.value = result.display.value + "正解：赤上 ";
+                if(blueflag_answer == 1){
+                    result.display.value = result.display.value + "青上\n";
+                }
+                else {
+                    result.display.value = result.display.value + "青下\n";
+                }
+            }
+            // 赤旗を下げるべき問題の場合
+            else if(fIndex <= 9 && 5 < cIndex) {
+                redflag_answer = 0;
+                if(blueflag_answer == 1){
+                    result.display.value = result.display.value + "青上\n";
+                }
+                else {
+                    result.display.value = result.display.value + "青下\n";
+                }
+            }
+            // 青旗を上げるべき問題の場合
+            else if(10 < fIndex && cIndex <= 5) {
+                blueflag_answer = 1;
+                if(redflag_answer == 1){
+                    result.display.value = result.display.value + "正解：赤上 ";
+                }
+                else {
+                    result.display.value = result.display.value + "正解：赤下 ";
+                }
+                result.display.value = result.display.value + "青上\n";
+            }
+            // 青旗を下げるべき問題の場合
+            else {
+                blueflag_answer = 0;
+                if(redflag_answer == 1){
+                    result.display.value = result.display.value + "正解：赤上 ";
+                }
+                else {
+                    result.display.value = result.display.value + "正解：赤下 ";
+                }
+                result.display.value = result.display.value + "青下\n";
+            }
+            
+            // 旗のプログラム内部の状態をコンソールログで見るコマンド（デバッグ用）
+            //console.log("redflag_now "+redflag_now+" blueflag_now "+ blueflag_now);
+            //console.log(qnum + "問目 " + flags[fIndex] + commands[cIndex]);
+            //console.log("redflag_answer "+redflag_answer + " blueflag_answer "+blueflag_answer);
+        }
+            
+        // 答えが正解かどうか判断
+        function checkAnswer() {
+            result.display.value = result.display.value + "あなたの解答：";
+            if(redflag_now == 1) result.display.value = result.display.value + "赤上 ";
+            else result.display.value = result.display.value + "赤下 ";
+            if(blueflag_now == 1) result.display.value = result.display.value + "青上  ";
+            else result.display.value = result.display.value + "青下  ";
+            // 正解
+            if(redflag_answer == redflag_now && blueflag_answer == blueflag_now) {
+                document.getElementById("cnum").innerText = cnum+1;
+                cnum++;
+                // 最終問題だけ○×の最後に「終了！」をつける
+                if(qnum == document.getElementById("snum").value) {
+                    document.getElementById("message").innerText = "○ " + "終了！";
+                } else {
+                    document.getElementById("message").innerText = "○";  
+                }
+                
+                result.display.value = result.display.value + "正解！\n";
+            } else { // 不正解
+                // 正解を現在の旗の状態に合わせる
+                redflag_answer = redflag_now;
+                blueflag_answer = blueflag_now;
+                // 最終問題だけ○×の最後に「終了！」をつける
+                if(qnum == document.getElementById("snum").value) {
+                    document.getElementById("message").innerText = "× " + "終了！";
+                } else {
+                    document.getElementById("message").innerText = "×";   
+                }
+                
+                result.display.value = result.display.value + "不正解・・・\n";
+            }
+        }
+        
+        // ゲーム開始時の処理
+        function startGame() {
+            // 答え合わせエリアを隠す
+            document.getElementById("result").className = "passive";
+            // 答え合わせエリア初期化
+            result.display.value = "";
+            // 2回目以降のための旗の位置初期化
+            $(function() {
+                $("#blueflag").offset({ top: 360, left: 392});
+            });
+            $("#redflag").animate({
+                    "marginTop" : "100px"
+                }, "fast");
+            $("#under-line").animate({
+                    "marginTop" : "0px"
+                }, "fast");
+            
+            // 画面に「青下げる」ボタンが表示されていた場合は「青下げる」ボタンを非表示にして「青上げる」ボタンを表示
+            if(document.getElementById("bluedown").className == "active") {
+                // 「青下げる」ボタンを非表示にして「青上げる」ボタンを表示
+                document.getElementById("bluedown").className = "passive";
+                document.getElementById("blueup").className = "active";
+                // プログラム内部の青旗を下げた状態にする
+                blueflag_now = 0;
+                blueflag_answer = 0;
+            }
+            // 画面に「赤下げる」ボタンが表示されていた場合
+            if(document.getElementById("reddown").className == "active") {
+                // 「赤下げる」ボタンを非表示にして「赤上げる」ボタンを表示
+                document.getElementById("reddown").className = "passive";
+                document.getElementById("redup").className = "active";
+                // プログラム内部の赤旗を下げた状態にする
+                redflag_now = 0;
+                redflag_answer = 0;
+            }
+            
+            // 2回目以降のためのメッセージの初期化
+            document.getElementById("message").innerText = "";
+            qnum = 0;
+            document.getElementById("qnum").innerText = "1";
+            cnum = 0;
+            document.getElementById("cnum").innerText = "0";
+            document.getElementById("remaining").innerText = "---";
+            
+            // プルダウンメニュー、スタートボタンを無効化
+            document.getElementById("snum").disabled = true;
+            document.getElementById("flash").disabled = true;
+            document.getElementById("start").disabled = true;
+            
+            var elm = document.getElementById("command");
+            elm.value = "ここに問題が表示されます";
+            
+            //問題開始までのカウントダウン
+            setTimeout(
+            function () {
+                elm.value = "3";
+            }, "2000");
+            setTimeout(
+            function () {
+                elm.value = "2";
+            }, "3000");
+            setTimeout(
+            function () {
+                elm.value = "1";
+            }, "4000");
+            setTimeout(
+            function () {
+                elm.value = "";
+            }, "5000");
+            setTimeout(
+            function () {
+                // 「赤上げる」「青上げる」のボタンを有効化
+                toEnabledRed();
+                toEnabledBlue();
+                maxTime = 3; // 制限時間は3秒
+                startTime = Date.now();
+                timer = setInterval(countTime,100);
+                // 1問目の表示
+                setQuiz();
+                
+            }, "6000");
+            
+        }
+        
+        // ゲーム終了時の処理
+        function stopGame() {
+            // 停止
+            clearInterval(timer);
+            // プルダウンメニュー、スタートボタンの有効化
+            document.getElementById("snum").disabled = false;
+            document.getElementById("flash").disabled = false;
+            document.getElementById("start").disabled = false;
+            // 旗の上げ下げボタンの無効化
+            toDisabledRed();
+            toDisabledBlue();
+            
+            //答え合わせエリアの表示
+            document.getElementById("result").className = "active";
+        }
+            
+        function countTime() {
+            var select_snum = document.getElementById("snum").value;
+            var select_flash = document.getElementById("flash").value;
+            // 残り時間の表示
+            var time = (maxTime - (Date.now() - startTime)/1000).toFixed(3);
+            document.getElementById("remaining").innerText = time;
+            // 指定された時間が経ったら問題を非表示にする
+            if(time < select_flash) document.getElementById("command").value = "";
+            // 時間切れになったら次の問題へ
+            if (time < 0) {
+                checkAnswer();
+                if (qnum == select_snum) { // 最終問題に到達したらゲームを終了する
+                    document.getElementById("remaining").innerText = "0.000";
+                    stopGame();
+                } else { // 最終問題でなければ次の問題へ
+                    startTime = Date.now();
+                    time = (maxTime - (Date.now() - startTime)/1000).toFixed(3);
+                    document.getElementById("remaining").innerText = time;               
+                    setQuiz();
+                }
+            }
+        }
+        
+        const HEIGHT = 900;
+        const WIDTH = 600;
+        
+        document.addEventListener('DOMContentLoaded', function () {
+            const resizeFix = function () {
+                const checkHeight = window.innerWidth / HEIGHT * WIDTH;
+                const marginTop = window.innerHeight - checkHeight;
+                const checkWidth = window.innerHeight / WIDTH * HEIGHT;
+                const marginLeft = window.innerWidth - checkWidth;
+
+                if (checkHeight > window.innerHeight) { //
+                    document.getElementsByClassName('wrap')[0].style.transform = 'scale(' + window.innerHeight / WIDTH + ')';
+                    document.getElementsByClassName('wrap')[0].style.marginLeft = marginLeft / 2 + 'px';
+                    document.getElementsByClassName('wrap')[0].style.marginTop = 0 + 'px';
+                } else {
+                    document.getElementsByClassName('wrap')[0].style.transform = 'scale(' + window.innerWidth / HEIGHT + ')';
+                    document.getElementsByClassName('wrap')[0].style.marginLeft = 0 + 'px';
+                    document.getElementsByClassName('wrap')[0].style.marginTop = marginTop / 2 + 'px';
+                }
+            }
+
+            resizeFix();
+
+            window.addEventListener('resize', function () {
+                resizeFix();
+            });
+        });
+        </script>
+        <style>
+            #redflag{
+                background-color: red;
+                margin-top: 100px;
+                margin-left: 50px;
+                width: 150px;
+                height: 100px;
+            }
+            #blueflag{
+                position: absolute;
+                width: 150px;
+                height: 100px;
+                background-color: blue;
+            }
+            #under-line{
+                margin-top: 0px;
+            }
+            #command{
+                margin-bottom: 10px;
+                width: 300px;
+            }
+            #redup{
+                margin-top: 10px;
+                margin-left: 85px;
+            }
+            #reddown{
+                margin-top: 10px;
+                margin-left: 85px;
+            }
+            #blueup{
+                margin-top: -27px;
+                margin-left: 330px;
+            }
+            #bluedown{
+                margin-top: -27px;
+                margin-left: 330px;
+            }
+            #message {color: #cc0000;}
+            .active{
+                display: block;
+            }
+            .passive{
+                display: none;
+            }
+            .explain{
+                font-size: 12px;
+            }
+            .wrap {
+                height: 900px;
+                width: 600px;
+                position: absolute;
+                transform-origin: 0% 0%;
+            }
+        </style>
+    </head>
+    <body onload="init()">
+        <h3>フラッシュ旗上げゲーム</h3>
+        <p>
+        問題の指示通りに旗を動かすゲームです。指示された旗だけ動かしてください。<br>
+        各問題の制限時間までに旗を動かしてください。1問の制限時間は3秒です。
+        </p>
+        <select id="snum">
+            <option value= 10>全10問</option>
+            <option value= 15>全15問</option>
+            <option value= 20>全20問</option>
+            <option value= 25>全25問</option>
+            <option value= 30>全30問</option>
+        </select>
+        <select id="flash">
+            <option value= 2.000>1秒表示</option>
+            <option value= 2.500>0.5秒表示</option>
+            <option value= 2.700>0.3秒表示</option>
+            <option value= 2.900>0.1秒表示</option>
+            <option value= 2.950>0.05秒表示</option>
+        </select>
+        <div>
+            <button id="start" onclick="startGame()">スタート</button>
+        </div>
+        【第<span id="qnum">1</span>問】残り時間:<span id="remaining">---</span>【正解：<span id="cnum">0</span>問】<span id="message"></span>
+        <hr>
+        <input id="command" type="text">
+        <div id="redflag"><div id="blueflag"></div></div>
+        <hr id="under-line">
+        <div>
+            <button id="redup" class="active">赤上げる</button>
+            <button id="reddown" class="passive">赤下げる</button>
+            <button id="blueup" class="active">青上げる</button>
+            <button id="bluedown" class="passive">青下げる</button>
+        </div>
+        <hr>
+        <form id="result" name="result" class="passive"><textarea rows="30" cols="20" name="display"></textarea><hr>
+        </form>
+    </body>
+</html>
+</div>
